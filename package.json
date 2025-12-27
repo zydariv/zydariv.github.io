@@ -1,0 +1,27 @@
+{
+  "name": "sample-tiled-parcel",
+  "version": "1.0.0",
+  "description": "Sample Excalibur Tiled Plugin with Parcel",
+  "alias": {
+    "JSDOM": false
+  },
+  "scripts": {
+    "start": "parcel serve ./index.html --host 0.0.0.0",
+    "build": "parcel build ./index.html --dist-dir ./dist --public-url ./"
+  },
+  "author": {
+    "name": "Excalibur.js Team",
+    "email": "excaliburjs@gmail.com",
+    "url": "http://excaliburjs.com"
+  },
+  "license": "BSD-2-Clause",
+  "dependencies": {
+    "@excaliburjs/plugin-tiled": "0.30.1",
+    "excalibur": "0.30.2"
+  },
+  "devDependencies": {
+    "buffer": "^6.0.3",
+    "parcel": "2.13.3",
+    "typescript": "5.7.2"
+  }
+}
