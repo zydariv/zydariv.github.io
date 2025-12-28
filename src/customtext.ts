@@ -43,7 +43,7 @@ export class CustomText extends ex.Actor {
 
     onPreUpdate(engine: ex.Engine, elapsed: number): void {
         const gp = engine.input.gamepads.at(0);
-        if (gp.getButton(ex.Buttons.Face1) > 0){
+        if (gp.getButton(ex.Buttons.Face1) > 0  || engine.input.keyboard.wasPressed(ex.Keys.Space) || engine.input.pointers.isDown(0)) {
             this.visible = false;
             DialogManager.freeze_player = false;
 
@@ -53,7 +53,7 @@ export class CustomText extends ex.Actor {
         this.pos = new ex.Vector(engine.currentScene.camera.pos.x - 50, engine.currentScene.camera.pos.y - 0);
         this.graphics.use(this._currentObject);
        } else {
-        this.graphics.use('');
+        //this.graphics.use('');
        }
     }
 

@@ -19,6 +19,7 @@ export class Player extends ex.Actor {
     }
 
     current_graphics = ""; 
+    private dirj: ex.Vector = ex.vec(0, 0);
     //private _textengine: CustomText;
     onInitialize(engine: ex.Engine): void {
         engine.currentScene.camera.strategy.lockToActor(this);
@@ -74,6 +75,21 @@ export class Player extends ex.Actor {
         this.graphics.add('down-idle', downIdle);
 
         this.current_graphics = 'down-idle';
+
+        // Register joystick handlers once and store joystick vector in this.dirj
+        if (GameStatus.joystick) {
+            GameStatus.joystick.on("move", (evt, data) => {
+                if (!data.vector) return;
+                const x = data.vector.x;
+                const y = data.vector.y;
+                // store raw vector; normalization and scaling are done in onPreUpdate
+                this.dirj = ex.vec(x, y);
+            });
+
+            GameStatus.joystick.on("end", () => {
+                this.dirj = ex.vec(0, 0);
+            });
+        }
 
         const leftWalk = new ex.Animation({
             frames: [
@@ -136,6 +152,8 @@ export class Player extends ex.Actor {
                 engine.input.keyboard.isHeld(ex.Keys.ArrowUp)
                 ||
                 (up > threshold && up >= down * ratio && up >= left * ratio && up >= right * ratio && left == 0 && right == 0)
+                ||
+                (this.dirj.y > 0.3)
             ) {
                 dir.y = -1;
                 this.graphics.use(this._currentAnim = 'up-walk');
@@ -147,6 +165,8 @@ export class Player extends ex.Actor {
                 engine.input.keyboard.isHeld(ex.Keys.ArrowDown)
                 ||
                 (down > threshold && down >= up * ratio && down >= left * ratio && down >= right * ratio && left == 0 && right == 0)
+                ||
+                (this.dirj.y < -0.3)
             ) {
                 dir.y = 1;
                 this.graphics.use(this._currentAnim = 'down-walk');
@@ -158,6 +178,8 @@ export class Player extends ex.Actor {
                 engine.input.keyboard.isHeld(ex.Keys.ArrowRight)
                 ||
                 (right > 0)//&& right >= left * ratio && right >= up * ratio && right >= down * ratio)
+                ||
+                (this.dirj.x > 0.3)
             ) {
                 dir.x = 1;
                 this.graphics.use(this._currentAnim = 'right-walk');
@@ -169,6 +191,8 @@ export class Player extends ex.Actor {
                 engine.input.keyboard.isHeld(ex.Keys.ArrowLeft)
                 ||
                 (left > 0)//&& left >= right * ratio && left >= up * ratio && left >= down * ratio)
+                ||
+                (this.dirj.x < -0.3)
             ) {
                 dir.x = -1;
                 this.graphics.use(this._currentAnim = 'left-walk');
