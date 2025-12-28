@@ -18,17 +18,16 @@ const game = new ex.Engine({
     suppressHiDPIScaling: true
 });
 
-const gametext = new CustomText(new ex.Vector(20, 99), width, height);
+const gametext = new CustomText(new ex.Vector(20, 95), width, height);
 
 DialogManager.init(gametext);
 game.start(loader).then(() => {
     GameStatus.joystick = nipplejs.create({
-  zone: document.getElementById("zone"),
-  mode: "static",
-  position: { left: "80px", top: "80px" },
-  color: "cyan"
-});
+        zone: document.getElementById("zone"),
+        mode: "static",
+        position: { left: "80px", top: "80px" },
+        color: "cyan"
+    });
     Resources.TiledMap.addToScene(game.currentScene);
     game.currentScene.add(gametext);
-    //DialogManager.say("Dies ist ein sehr langer textdsfdfkjsdhfjkashdfjkh hfjkd sjkasdh ashf kahf h f a asdfhk", false);
 });

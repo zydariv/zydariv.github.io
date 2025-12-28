@@ -235,7 +235,7 @@ export class Player extends ex.Actor {
             if (GameStatus.schatz_gefunden == false) {
             DialogManager.say("DANIEL: Oh nein, wir\n haben unseren \nSchatz verloren,\nfindest du ihn wieder?", true);
             } else {
-                DialogManager.say("DANIEL: Danke, du hast unsere Ringe gefunden. Jetzt können wir endlich heiraten.", true);
+                DialogManager.say("DANIEL: SURPRISE", true);
             }
         }
 
@@ -243,7 +243,7 @@ export class Player extends ex.Actor {
             if (GameStatus.schatz_gefunden == false) {
             DialogManager.say("VIO: Oh nein, wir\n haben unseren \nSchatz verloren,\nfindest du ihn wieder?", true);
             } else {
-                DialogManager.say("VIO: Danke, du hast unsere Ringe gefunden. Jetzt können wir endlich heiraten.", true);
+                DialogManager.say("VIO: Danke, du hast unsere Eheringe gefunden. Wir haben am 20.12. geheiratet!         SURPRISE!!!", true);
             }
         }
 

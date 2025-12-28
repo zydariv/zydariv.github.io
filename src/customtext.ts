@@ -53,7 +53,7 @@ export class CustomText extends ex.Actor {
         this.pos = new ex.Vector(engine.currentScene.camera.pos.x - 50, engine.currentScene.camera.pos.y - 0);
         this.graphics.use(this._currentObject);
        } else {
-        //this.graphics.use('');
+        this.graphics.use('');
        }
     }
 
