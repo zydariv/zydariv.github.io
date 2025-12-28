@@ -412,7 +412,7 @@
  <objectgroup id="8" name="Objektebene 1">
   <object id="1" name="Player" type="player" x="104.031" y="90.6076"/>
   <object id="4" name="Camera" type="camera" x="102.353" y="114.098"/>
-  <object id="8" name="Chest" type="chest" gid="231" x="303.875" y="326.125" width="16" height="16">
+  <object id="8" name="Chest" type="chest" gid="231" x="311.875" y="328.489" width="16" height="16">
    <properties>
     <property name="CollisionType" value="fixed"/>
    </properties>
