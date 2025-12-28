@@ -615,7 +615,7 @@ const game = new _excalibur.Engine({
     displayMode: _excalibur.DisplayMode.FitScreenAndFill,
     suppressHiDPIScaling: true
 });
-const gametext = new (0, _customtext.CustomText)(new _excalibur.Vector(20, 99), width, height);
+const gametext = new (0, _customtext.CustomText)(new _excalibur.Vector(20, 95), width, height);
 (0, _dialogmanager.DialogManager).init(gametext);
 game.start((0, _resources.loader)).then(()=>{
     (0, _gamestatus.GameStatus).joystick = (0, _nipplejsDefault.default).create({
@@ -629,7 +629,6 @@ game.start((0, _resources.loader)).then(()=>{
     });
     (0, _resources.Resources).TiledMap.addToScene(game.currentScene);
     game.currentScene.add(gametext);
-//DialogManager.say("Dies ist ein sehr langer textdsfdfkjsdhfjkashdfjkh hfjkd sjkasdh ashf kahf h f a asdfhk", false);
 });
 
 },{"excalibur":"ee0bS","./resources":"hEdRW","./customtext":"gAlQ8","./dialogmanager":"dnvnk","nipplejs":"300GU","./gamestatus":"hn4Kc","@parcel/transformer-js/src/esmodule-helpers.js":"gkKU3"}],"ee0bS":[function(require,module,exports,__globalThis) {
@@ -24692,11 +24691,11 @@ class Player extends _excalibur.Actor {
         }
         if (otherOwner instanceof (0, _daniel.Daniel)) {
             if ((0, _gamestatus.GameStatus).schatz_gefunden == false) (0, _dialogmanager.DialogManager).say("DANIEL: Oh nein, wir\n haben unseren \nSchatz verloren,\nfindest du ihn wieder?", true);
-            else (0, _dialogmanager.DialogManager).say("DANIEL: Danke, du hast unsere Ringe gefunden. Jetzt k\xf6nnen wir endlich heiraten.", true);
+            else (0, _dialogmanager.DialogManager).say("DANIEL: SURPRISE", true);
         }
         if (otherOwner instanceof (0, _vio.Vio)) {
             if ((0, _gamestatus.GameStatus).schatz_gefunden == false) (0, _dialogmanager.DialogManager).say("VIO: Oh nein, wir\n haben unseren \nSchatz verloren,\nfindest du ihn wieder?", true);
-            else (0, _dialogmanager.DialogManager).say("VIO: Danke, du hast unsere Ringe gefunden. Jetzt k\xf6nnen wir endlich heiraten.", true);
+            else (0, _dialogmanager.DialogManager).say("VIO: Danke, du hast unsere Eheringe gefunden. Wir haben am 20.12. geheiratet!         SURPRISE!!!", true);
         }
     }
 }
@@ -25282,7 +25281,7 @@ class CustomText extends _excalibur.Actor {
         if (this.visible == true) {
             this.pos = new _excalibur.Vector(engine.currentScene.camera.pos.x - 50, engine.currentScene.camera.pos.y - 0);
             this.graphics.use(this._currentObject);
-        }
+        } else this.graphics.use('');
     }
     setDialogue(dialogue_text) {
         this._currentObject = new _excalibur.Text({
