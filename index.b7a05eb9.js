@@ -604,31 +604,172 @@ var _resources = require("./resources");
 var _customtext = require("./customtext");
 var _dialogmanager = require("./dialogmanager");
 var _gamestatus = require("./gamestatus");
-const width = 100; //500;
-const height = 100; //500;
+// Use a square virtual resolution so the camera aspect ratio is 1:1
+const VIRTUAL_SIZE = 320;
+const devicePR = Math.max(1, Math.floor(window.devicePixelRatio || 1));
 const game = new _excalibur.Engine({
-    width: width,
-    height: height,
+    width: VIRTUAL_SIZE,
+    height: VIRTUAL_SIZE,
     canvasElementId: 'game',
     pixelArt: true,
-    pixelRatio: 2,
-    displayMode: _excalibur.DisplayMode.FitScreenAndFill,
-    suppressHiDPIScaling: true
+    // Use an integer pixelRatio based on device to keep scaling crisp
+    pixelRatio: devicePR,
+    // Fit screen but we'll adjust the canvas CSS to keep it square and centered
+    displayMode: _excalibur.DisplayMode.FitScreen,
+    // let Excalibur handle HiDPI scaling
+    suppressHiDPIScaling: false
 });
-const gametext = new (0, _customtext.CustomText)(new _excalibur.Vector(20, 95), width, height);
+const gametext = new (0, _customtext.CustomText)(new _excalibur.Vector(20, VIRTUAL_SIZE - 25), VIRTUAL_SIZE, VIRTUAL_SIZE);
 (0, _dialogmanager.DialogManager).init(gametext);
 game.start((0, _resources.loader)).then(()=>{
-    (0, _gamestatus.GameStatus).joystick = (0, _nipplejsDefault.default).create({
-        zone: document.getElementById("zone"),
-        mode: "static",
-        position: {
-            left: "80px",
-            top: "80px"
-        },
-        color: "cyan"
-    });
+    // Add Tiled map and UI
     (0, _resources.Resources).TiledMap.addToScene(game.currentScene);
     game.currentScene.add(gametext);
+    // Joystick handling: only create on touch devices when no physical gamepad is connected
+    let joystickInstance = null;
+    function hasPhysicalGamepad() {
+        const gps = navigator.getGamepads ? navigator.getGamepads() : [];
+        for (const gp of gps){
+            if (gp && gp.connected) return true;
+        }
+        return false;
+    }
+    function isTouchDevice() {
+        return 'ontouchstart' in window || navigator.maxTouchPoints && navigator.maxTouchPoints > 0;
+    }
+    function createJoystickIfNeeded() {
+        const zone = document.getElementById('zone');
+        const btnB = document.getElementById('btn-b');
+        const shouldShow = isTouchDevice() && !hasPhysicalGamepad();
+        // If we shouldn't show controls, destroy existing joystick and hide UI
+        if (!shouldShow) {
+            destroyJoystick();
+            if (zone) zone.style.display = 'none';
+            if (btnB) btnB.style.display = 'none';
+            return;
+        }
+        // Ensure we have the zone element
+        if (!zone) return;
+        // If joystick already exists, make sure UI is visible and return
+        if (joystickInstance) {
+            zone.style.display = 'block';
+            if (btnB) btnB.style.display = 'flex';
+            return;
+        }
+        // Make the zone visible first so nipplejs can measure dimensions correctly
+        zone.style.display = 'block';
+        if (btnB) btnB.style.display = 'flex';
+        // Center the static joystick inside the visible zone using pixel coordinates
+        const zrect = zone.getBoundingClientRect();
+        const posLeft = Math.floor(zrect.width / 2);
+        const posTop = Math.floor(zrect.height / 2);
+        if (window.DEBUG_JOYSTICK) console.debug('zone rect before create', zrect, {
+            posLeft,
+            posTop
+        });
+        // Create joystick with pixel-based static position centered in zone
+        joystickInstance = (0, _nipplejsDefault.default).create({
+            zone: zone,
+            mode: 'static',
+            position: {
+                left: `${posLeft}px`,
+                top: `${posTop}px`
+            },
+            color: 'cyan'
+        });
+        (0, _gamestatus.GameStatus).joystick = joystickInstance;
+        if (window.DEBUG_JOYSTICK) console.debug('joystick created', joystickInstance);
+        // Update shared joystick vector for players to read
+        joystickInstance.on('move', (_evt, data)=>{
+            if (!data.vector) return;
+            const x = data.vector.x;
+            const y = data.vector.y;
+            (0, _gamestatus.GameStatus).joystickVector = _excalibur.vec(x, -y); //.normalize();
+        });
+        joystickInstance.on('end', ()=>{
+            (0, _gamestatus.GameStatus).joystickVector = _excalibur.vec(0, 0);
+        });
+    }
+    function destroyJoystick() {
+        if (joystickInstance) {
+            try {
+                joystickInstance.destroy();
+            } catch (e) {}
+            joystickInstance = null;
+            (0, _gamestatus.GameStatus).joystick = null;
+        }
+        const zone = document.getElementById('zone');
+        const btnB = document.getElementById('btn-b');
+        if (zone) zone.style.display = 'none';
+        if (btnB) btnB.style.display = 'none';
+    }
+    // Initial setup
+    createJoystickIfNeeded();
+    // Recreate/destroy on gamepad connect/disconnect
+    window.addEventListener('gamepadconnected', ()=>{
+        destroyJoystick();
+    });
+    window.addEventListener('gamepaddisconnected', ()=>{
+        createJoystickIfNeeded();
+    });
+    // Canvas sizing: keep the game canvas square and centered using the smaller viewport dimension
+    function updateCanvasSquare() {
+        const canvas = document.getElementById('game');
+        if (!canvas) return;
+        // Use the smaller dimension; for landscape this will be the height (as requested)
+        let size = Math.min(window.innerWidth, window.innerHeight);
+        // make slightly smaller to avoid touching OS UI
+        size = Math.floor(size * 0.95);
+        canvas.style.width = size + 'px';
+        canvas.style.height = size + 'px';
+        // Position the dialog exactly inside the canvas lower third
+        const dialog = document.getElementById('dialog');
+        const dialogInner = document.querySelector('#dialog .dialog-inner');
+        if (dialog && dialogInner) {
+            const rect = canvas.getBoundingClientRect();
+            const dialogHeight = Math.floor(rect.height / 3);
+            dialog.style.left = rect.left + 'px';
+            dialog.style.top = rect.top + rect.height - dialogHeight + 'px';
+            dialog.style.width = rect.width + 'px';
+            dialog.style.height = dialogHeight + 'px';
+            // ensure the dialog-inner fills the parent (no horizontal padding/margin)
+            dialogInner.style.width = '100%';
+            dialogInner.style.height = '100%';
+            dialogInner.style.maxWidth = rect.width + 'px';
+        }
+        // B button remains fixed (CSS). Ensure it stays on-screen and outside the canvas if possible
+        const btnB = document.getElementById('btn-b');
+        if (btnB) {
+            const rect = canvas.getBoundingClientRect();
+            const btnRect = btnB.getBoundingClientRect();
+            const gapRight = window.innerWidth - rect.right; // space to right of canvas
+            const desiredGap = 16; // desired distance from viewport edge
+            if (gapRight < btnRect.width + desiredGap) {
+                // not enough space, move button left by extra amount so it remains visible
+                const extra = btnRect.width + desiredGap - gapRight;
+                btnB.style.right = desiredGap + extra + 'px';
+            } else btnB.style.right = desiredGap + 'px';
+        }
+    }
+    updateCanvasSquare();
+    window.addEventListener('resize', ()=>{
+        updateCanvasSquare();
+        // Recreate joystick on resize so nipplejs recalibrates to new zone size
+        if (isTouchDevice()) {
+            destroyJoystick();
+            setTimeout(()=>createJoystickIfNeeded(), 100);
+        } else createJoystickIfNeeded();
+    });
+    window.addEventListener('orientationchange', ()=>{
+        // allow the browser to settle, then resize and re-create joystick for correct calibration
+        setTimeout(()=>{
+            updateCanvasSquare();
+            if (isTouchDevice()) {
+                destroyJoystick();
+                setTimeout(()=>createJoystickIfNeeded(), 150);
+            } else createJoystickIfNeeded();
+        }, 300);
+    });
 });
 
 },{"excalibur":"ee0bS","./resources":"hEdRW","./customtext":"gAlQ8","./dialogmanager":"dnvnk","nipplejs":"300GU","./gamestatus":"hn4Kc","@parcel/transformer-js/src/esmodule-helpers.js":"gkKU3"}],"ee0bS":[function(require,module,exports,__globalThis) {
@@ -24438,7 +24579,7 @@ class Player extends _excalibur.Actor {
             width: 16,
             height: 16,
             collisionType: _excalibur.CollisionType.Active
-        }), this.current_graphics = "", this.dirj = _excalibur.vec(0, 0), this._currentAnim = 'down-idle';
+        }), this.current_graphics = "", this._currentAnim = 'down-idle';
     }
     //private _textengine: CustomText;
     onInitialize(engine) {
@@ -24537,19 +24678,7 @@ class Player extends _excalibur.Actor {
         });
         this.graphics.add('down-idle', downIdle);
         this.current_graphics = 'down-idle';
-        // Register joystick handlers once and store joystick vector in this.dirj
-        if ((0, _gamestatus.GameStatus).joystick) {
-            (0, _gamestatus.GameStatus).joystick.on("move", (evt, data)=>{
-                if (!data.vector) return;
-                const x = data.vector.x;
-                const y = data.vector.y;
-                // store raw vector; normalization and scaling are done in onPreUpdate
-                this.dirj = _excalibur.vec(x, y);
-            });
-            (0, _gamestatus.GameStatus).joystick.on("end", ()=>{
-                this.dirj = _excalibur.vec(0, 0);
-            });
-        }
+        // Joystick is handled globally via GameStatus.joystickVector (updated in main when joystick emits events)
         const leftWalk = new _excalibur.Animation({
             frames: [
                 {
@@ -24648,21 +24777,23 @@ class Player extends _excalibur.Actor {
         // Check if Player was frozen
         if ((0, _dialogmanager.DialogManager).freeze_player == false) {
             // UP
-            if (engine.input.keyboard.isHeld(_excalibur.Keys.ArrowUp) || up > threshold && up >= down * ratio && up >= left * ratio && up >= right * ratio && left == 0 && right == 0 || this.dirj.y > 0.3) {
+            if (engine.input.keyboard.isHeld(_excalibur.Keys.ArrowUp) || up > threshold && up >= down * ratio && up >= left * ratio && up >= right * ratio && left == 0 && right == 0 || (0, _gamestatus.GameStatus).joystickVector.y < -0.3 // joystick y < 0 means up
+            ) {
                 dir.y = -1;
                 this.graphics.use(this._currentAnim = 'up-walk');
                 this.current_graphics = 'up-idle';
-            } else if (engine.input.keyboard.isHeld(_excalibur.Keys.ArrowDown) || down > threshold && down >= up * ratio && down >= left * ratio && down >= right * ratio && left == 0 && right == 0 || this.dirj.y < -0.3) {
+            } else if (engine.input.keyboard.isHeld(_excalibur.Keys.ArrowDown) || down > threshold && down >= up * ratio && down >= left * ratio && down >= right * ratio && left == 0 && right == 0 || (0, _gamestatus.GameStatus).joystickVector.y > 0.3 // joystick y > 0 means down
+            ) {
                 dir.y = 1;
                 this.graphics.use(this._currentAnim = 'down-walk');
                 this.current_graphics = 'down-idle';
             } else if (engine.input.keyboard.isHeld(_excalibur.Keys.ArrowRight) || right > 0 //&& right >= left * ratio && right >= up * ratio && right >= down * ratio)
-             || this.dirj.x > 0.3) {
+             || (0, _gamestatus.GameStatus).joystickVector.x > 0.3) {
                 dir.x = 1;
                 this.graphics.use(this._currentAnim = 'right-walk');
                 this.current_graphics = 'right-idle';
             } else if (engine.input.keyboard.isHeld(_excalibur.Keys.ArrowLeft) || left > 0 //&& left >= right * ratio && left >= up * ratio && left >= down * ratio)
-             || this.dirj.x < -0.3) {
+             || (0, _gamestatus.GameStatus).joystickVector.x < -0.3) {
                 dir.x = -1;
                 this.graphics.use(this._currentAnim = 'left-walk');
                 this.current_graphics = 'left-idle';
@@ -24682,6 +24813,12 @@ class Player extends _excalibur.Actor {
             if (maybeTile?.solid) {
                 const targetMidW = maybeTile.pos.x + maybeTile.width / 2;
                 const targetMidH = maybeTile.pos.y + maybeTile.height / 2;
+                // This logic causes player to slide to nearest edge to go around objects.
+                if (this._currentAnim === 'left-walk' || this._currentAnim === 'right-walk') {
+                    if (this.pos.y < targetMidH) this.pos.y -= 1;
+                    else this.pos.y += 1;
+                } else if (this.pos.x < targetMidW) this.pos.x -= 1;
+                else this.pos.x += 1;
                 break;
             }
         }
@@ -24690,12 +24827,12 @@ class Player extends _excalibur.Actor {
             (0, _dialogmanager.DialogManager).say("Du hast die Truhe mit dem Schatz gefunden!", true);
         }
         if (otherOwner instanceof (0, _daniel.Daniel)) {
-            if ((0, _gamestatus.GameStatus).schatz_gefunden == false) (0, _dialogmanager.DialogManager).say("DANIEL: Oh nein, wir\n haben unseren \nSchatz verloren,\nfindest du ihn wieder?", true);
-            else (0, _dialogmanager.DialogManager).say("DANIEL: SURPRISE", true);
+            if ((0, _gamestatus.GameStatus).schatz_gefunden == false) (0, _dialogmanager.DialogManager).say("DANIEL: Oh nein, wir haben unseren Schatz verloren, findest du ihn wieder?", true);
+            else (0, _dialogmanager.DialogManager).say("DANIEL: SURPRISE!!", true);
         }
         if (otherOwner instanceof (0, _vio.Vio)) {
-            if ((0, _gamestatus.GameStatus).schatz_gefunden == false) (0, _dialogmanager.DialogManager).say("VIO: Oh nein, wir\n haben unseren \nSchatz verloren,\nfindest du ihn wieder?", true);
-            else (0, _dialogmanager.DialogManager).say("VIO: Danke, du hast unsere Eheringe gefunden. Wir haben am 20.12. geheiratet!         SURPRISE!!!", true);
+            if ((0, _gamestatus.GameStatus).schatz_gefunden == false) (0, _dialogmanager.DialogManager).say("VIO: Oh nein, wir haben unseren Schatz verloren, findest du ihn wieder?", true);
+            else (0, _dialogmanager.DialogManager).say("VIO: Danke, du hast unsere Eheringe gefunden. Wir haben am 20.12. geheiratet!      SURPRISE!!!", true);
         }
     }
 }
@@ -24800,13 +24937,22 @@ class Chest extends _excalibur.Actor {
 var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
 parcelHelpers.defineInteropFlag(exports);
 parcelHelpers.export(exports, "GameStatus", ()=>GameStatus);
+var _excalibur = require("excalibur");
 class GameStatus {
     static{
         this.schatz_gefunden = false;
     }
+    static{
+        // nipplejs joystick instance
+        this.joystick = null;
+    }
+    static{
+        // Shared joystick vector (updated by main when joystick emits events)
+        this.joystickVector = _excalibur.vec(0, 0);
+    }
 }
 
-},{"@parcel/transformer-js/src/esmodule-helpers.js":"gkKU3"}],"dnvnk":[function(require,module,exports,__globalThis) {
+},{"@parcel/transformer-js/src/esmodule-helpers.js":"gkKU3","excalibur":"ee0bS"}],"dnvnk":[function(require,module,exports,__globalThis) {
 // DialogManager.ts
 var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
 parcelHelpers.defineInteropFlag(exports);
@@ -25241,7 +25387,6 @@ var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
 parcelHelpers.defineInteropFlag(exports);
 parcelHelpers.export(exports, "CustomText", ()=>CustomText);
 var _excalibur = require("excalibur");
-var _resources = require("./resources");
 var _dialogmanager = require("./dialogmanager");
 class CustomText extends _excalibur.Actor {
     constructor(pos, width, height){
@@ -25252,53 +25397,229 @@ class CustomText extends _excalibur.Actor {
             collisionType: _excalibur.CollisionType.PreventCollision,
             anchor: new _excalibur.Vector(0, 0),
             z: 100
-        }), this.game_width = this.width, this.game_height = this.height, this.visible = false, this._currentText = '';
+        }), this.dialogEl = null, this.innerEl = null, this.moreEl = null, this.segments = [], this.currentSegment = 0, this.prevGamepadFace1Pressed = false, this.fullText = '', // layout/calc cache
+        this.fontSizePx = null, this.lineHeightPx = null, this.charsPerLine = null, this.linesPerBox = 3, this.lastOrientation = null;
     }
     onInitialize(engine) {
-        const spriteFontSheet = _excalibur.SpriteSheet.fromImageSource({
-            image: (0, _resources.Resources).FontSpritePng,
-            grid: {
-                spriteWidth: 16,
-                spriteHeight: 16,
-                rows: 3,
-                columns: 16
-            }
-        });
-        const spriteFont = new _excalibur.SpriteFont({
-            alphabet: '0123456789abcdefghijklmnopqrstuvwxyz,!\'&."?-()+ ',
-            caseInsensitive: true,
-            spriteSheet: spriteFontSheet,
-            lineHeight: 10
-        });
-        this._font = spriteFont;
+        // Find or create the dialog overlay elements
+        this.dialogEl = document.getElementById('dialog');
+        this.innerEl = this.dialogEl?.querySelector('.dialog-text');
+        this.moreEl = this.dialogEl?.querySelector('.dialog-more');
+        // B button hook: pointerup advances dialog (consistent with release behavior)
+        const btnB = document.getElementById('btn-b');
+        if (btnB) {
+            btnB.addEventListener('pointerup', (e)=>{
+                e.preventDefault();
+                this.advance();
+            });
+            btnB.addEventListener('pointerdown', (e)=>e.preventDefault());
+        }
+        if (this.dialogEl) {
+            // Advance on pointer release (not pointerdown) to avoid skipping multiple segments while holding
+            this.dialogEl.addEventListener('pointerup', (e)=>{
+                e.preventDefault();
+                this.advance();
+            });
+            // Prevent accidental pointerdown interactions propagating to the canvas
+            this.dialogEl.addEventListener('pointerdown', (e)=>e.preventDefault());
+            // Recompute segmentation and font sizing only when the orientation actually changes
+            window.addEventListener('resize', ()=>{
+                const current = window.innerHeight >= window.innerWidth ? 'portrait' : 'landscape';
+                if (current !== this.lastOrientation) {
+                    this.lastOrientation = current;
+                    if (this.isVisible() && this.fullText) {
+                        const prev = this.currentSegment;
+                        // recompute sizing and resegment
+                        this.computeSizing();
+                        this.setDialogue(this.fullText);
+                        // jump to the nearest segment index so the player doesn't lose place
+                        this.currentSegment = Math.min(prev, this.segments.length - 1);
+                        this.showSegment(this.currentSegment);
+                    } else // update sizing for next dialog
+                    this.computeSizing();
+                }
+            });
+            // Also compute sizing at initialization
+            this.computeSizing();
+        }
     }
     onPreUpdate(engine, elapsed) {
         const gp = engine.input.gamepads.at(0);
-        if (gp.getButton(_excalibur.Buttons.Face1) > 0 || engine.input.keyboard.wasPressed(_excalibur.Keys.Space) || engine.input.pointers.isDown(0)) {
-            this.visible = false;
-            (0, _dialogmanager.DialogManager).freeze_player = false;
+        // advance on release: keyboard.wasReleased, pointerup handled via DOM event, gamepad release detected here
+        if (engine.input.keyboard.wasReleased(_excalibur.Keys.Space) && this.isVisible()) this.advance();
+        const face1Pressed = gp.getButton(_excalibur.Buttons.Face1) > 0;
+        if (this.prevGamepadFace1Pressed && !face1Pressed && this.isVisible()) // button was released
+        this.advance();
+        this.prevGamepadFace1Pressed = face1Pressed;
+    }
+    isVisible() {
+        return this.dialogEl?.classList.contains('visible') ?? false;
+    }
+    computeSizing() {
+        if (!this.innerEl || !this.dialogEl) return;
+        // Ensure dialog is rendered (not display:none) while measuring — temporarily show hidden dialog to get real sizes
+        let restoredStyles = false;
+        let oldDisplay = '';
+        let oldVisibility = '';
+        if (!this.isVisible()) {
+            oldDisplay = this.dialogEl.style.display;
+            oldVisibility = this.dialogEl.style.visibility;
+            this.dialogEl.style.display = 'flex';
+            this.dialogEl.style.visibility = 'hidden';
+            // Force layout
+            this.dialogEl.getBoundingClientRect();
+            restoredStyles = true;
         }
-        if (this.visible == true) {
-            this.pos = new _excalibur.Vector(engine.currentScene.camera.pos.x - 50, engine.currentScene.camera.pos.y - 0);
-            this.graphics.use(this._currentObject);
-        } else this.graphics.use('');
+        const container = this.innerEl;
+        const compStyle = window.getComputedStyle(container);
+        const containerWidth = container.clientWidth;
+        const containerHeight = container.clientHeight;
+        // Restore previous visibility if we changed it
+        if (restoredStyles && this.dialogEl) {
+            this.dialogEl.style.display = oldDisplay;
+            this.dialogEl.style.visibility = oldVisibility;
+        }
+        console.log('containerwidth', containerWidth, 'containerheight', containerHeight);
+        // If still zero (fallback), compute from canvas third (no arbitrary subtraction)
+        let effectiveHeight = containerHeight > 0 ? containerHeight : 0;
+        if (effectiveHeight != 0) {
+            const canvas = document.getElementById('game');
+            if (canvas) {
+                const crect = canvas.getBoundingClientRect();
+                // Use exact third of canvas height (no extra subtraction)
+                effectiveHeight = Math.max(10, Math.floor(crect.height / 3));
+                console.log('crect.height', crect.height, '=> effectiveHeight', effectiveHeight);
+            } else {
+                effectiveHeight = Math.max(10, Math.floor(window.innerHeight * 0.33));
+                console.log('window.innerHeight', window.innerHeight, '=> effectiveHeight', effectiveHeight);
+            }
+        }
+        // Target three lines with small line gap
+        const targetLines = 7;
+        const targetLineHeightFactor = 1.05;
+        const usableHeight = effectiveHeight; // inner content area
+        // Compute font size so exactly targetLines fit the container
+        const fontSizePx = Math.max(10, Math.floor(usableHeight / targetLines / targetLineHeightFactor));
+        const lineHeightPx = Math.max(12, Math.round(fontSizePx * targetLineHeightFactor));
+        console.log(usableHeight);
+        // Apply computed font sizing to ensure exact fit
+        container.style.fontSize = fontSizePx + 'px';
+        container.style.lineHeight = lineHeightPx + 'px';
+        // Measure average character width for the chosen font size
+        const meas = document.createElement('span');
+        meas.style.visibility = 'hidden';
+        meas.style.position = 'absolute';
+        meas.style.whiteSpace = 'nowrap';
+        meas.style.fontFamily = compStyle.fontFamily;
+        meas.style.fontSize = fontSizePx + 'px';
+        meas.textContent = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
+        document.body.appendChild(meas);
+        const avgCharWidth = meas.getBoundingClientRect().width / (meas.textContent?.length || 1);
+        document.body.removeChild(meas);
+        const charsPerLine = Math.max(8, Math.floor(containerWidth / avgCharWidth));
+        const linesPerBox = targetLines; // we sized the font to fit 3 lines
+        // Store into cache fields rather than remeasuring later
+        this.fontSizePx = fontSizePx;
+        this.lineHeightPx = lineHeightPx;
+        this.charsPerLine = charsPerLine;
+        this.linesPerBox = linesPerBox - 2;
+        this.lastOrientation = window.innerHeight >= window.innerWidth ? 'portrait' : 'landscape';
+    }
+    show() {
+        if (!this.dialogEl) return;
+        this.dialogEl.classList.add('visible');
+        this.dialogEl.setAttribute('aria-hidden', 'false');
+        // Block player controls while dialog is visible
+        (0, _dialogmanager.DialogManager).freeze_player = true;
+        // reset gamepad press tracking to avoid accidental immediate advance
+        this.prevGamepadFace1Pressed = false;
+    }
+    hide() {
+        if (!this.dialogEl) return;
+        this.dialogEl.classList.remove('visible');
+        this.dialogEl.setAttribute('aria-hidden', 'true');
+        // Ensure player is unfrozen when dialog finishes
+        (0, _dialogmanager.DialogManager).freeze_player = false;
+    }
+    showSegment(index) {
+        if (!this.innerEl) return;
+        this.innerEl.textContent = this.segments[index] ?? '';
+        // update 'more' indicator
+        if (this.moreEl) {
+            if (this.currentSegment < this.segments.length - 1) this.moreEl.style.opacity = '1';
+            else this.moreEl.style.opacity = '0';
+        }
+    }
+    /** Advance to the next segment (internal) */ advance() {
+        if (this.currentSegment < this.segments.length - 1) {
+            this.currentSegment += 1;
+            this.showSegment(this.currentSegment);
+        } else {
+            this.hide();
+            this.segments = [];
+            this.currentSegment = 0;
+        }
+    }
+    /** Public method for external UI (e.g., B button) to advance */ next() {
+        if (this.isVisible()) this.advance();
     }
     setDialogue(dialogue_text) {
-        this._currentObject = new _excalibur.Text({
-            text: dialogue_text,
-            font: this._font,
-            maxWidth: 100
-        });
-        this._currentObject.scale = new _excalibur.Vector(0.9, 0.9);
-        this._currentObject = new _excalibur.Text({
-            text: dialogue_text,
-            maxWidth: 100
-        });
-        this.visible = true;
+        // Store full text for potential re-segmentation on resize
+        this.fullText = dialogue_text;
+        // Segment the text to fit into the dialog box (lower third).
+        if (!this.innerEl || !this.dialogEl) {
+            // Fallback: just show entire text in a single segment
+            this.segments = [
+                dialogue_text
+            ];
+            this.currentSegment = 0;
+            this.show();
+            this.showSegment(0);
+            return;
+        }
+        // Ensure sizing is computed and only recompute when orientation changed
+        const currentOrientation = window.innerHeight >= window.innerWidth ? 'portrait' : 'landscape';
+        if (this.lastOrientation === null || this.lastOrientation !== currentOrientation) this.computeSizing();
+        // Re-read container width for segmentation fallback
+        const container = this.innerEl;
+        const compStyle = window.getComputedStyle(container);
+        const containerWidth = container.clientWidth;
+        // Build segments by words, ensuring we don't cut words when possible
+        const charsPerLine = this.charsPerLine ?? Math.max(8, Math.floor(containerWidth / 8));
+        const linesPerBox = this.linesPerBox;
+        const maxChars = charsPerLine * linesPerBox;
+        const words = dialogue_text.split(/(\s+)/); // keep whitespace
+        const segments = [];
+        let current = '';
+        for (const w of words){
+            const test = current + w;
+            if (test.length > maxChars && current.length > 0) {
+                segments.push(current.trim());
+                // If single word too large, split it
+                if (w.length > maxChars) {
+                    let part = '';
+                    for(let i = 0; i < w.length; i++){
+                        part += w[i];
+                        if (part.length >= maxChars) {
+                            segments.push(part);
+                            part = '';
+                        }
+                    }
+                    current = part;
+                } else current = w;
+            } else current = test;
+        }
+        if (current.trim().length > 0) segments.push(current.trim());
+        this.segments = segments.length ? segments : [
+            dialogue_text
+        ];
+        this.currentSegment = 0;
+        this.showSegment(0);
+        this.show();
     }
 }
 
-},{"excalibur":"ee0bS","./resources":"hEdRW","./dialogmanager":"dnvnk","@parcel/transformer-js/src/esmodule-helpers.js":"gkKU3"}],"300GU":[function(require,module,exports,__globalThis) {
+},{"excalibur":"ee0bS","./dialogmanager":"dnvnk","@parcel/transformer-js/src/esmodule-helpers.js":"gkKU3"}],"300GU":[function(require,module,exports,__globalThis) {
 !function(t, i) {
     module.exports = i();
 }(window, function() {

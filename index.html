@@ -7,157 +7,167 @@
     <title>The Game</title>
 </head>
 <body>
-    <style>
-        /* Load a videogame-like font as fallback (network optional). */
-        @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+    <style>@import "https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap";
+html, body {
+  background: #000;
+  justify-content: center;
+  align-items: flex-start;
+  height: 100%;
+  margin: 0;
+  display: flex;
+}
 
-        html, body {
-            height: 100%;
-            margin: 0;
-            background: #000;
-            display: flex;
-            align-items: flex-start; /* stick canvas to top */
-            justify-content: center;
-        }
-        canvas#game {
-            width: auto;
-            height: auto;
-            max-width: 100vw;
-            max-height: 100vh;
-            display: block;
-            image-rendering: pixelated; /* crisp pixel art */
-            image-rendering: -moz-crisp-edges;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.6);
-            background: #000;
-            margin-top: 8px; /* small offset from top */
-        }
-        /* Dialog overlay fills lower third */
-        /* Dialog sits inside the canvas: we'll size and position it to the canvas rect in JS */
-        #dialog {
-            position: fixed; /* use viewport-fixed positioning for reliable left/top */
-            left: 0;
-            top: 0;
-            width: 0;
-            height: 0;
-            box-sizing: border-box;
-            display: none; /* hidden by default */
-            align-items: stretch;
-            justify-content: flex-end; /* align inner to bottom of canvas area */
-            pointer-events: none; /* clicks pass through unless visible */
-            z-index: 9999;
-            overflow: visible;
-        }
-        #dialog.visible { display: block; pointer-events: auto; }
-        #dialog .dialog-inner {
-            width: 100%;
-            height: 33%; /* lower third of the canvas area */
-            background: white;
-            border: 3px solid #000; /* stronger border */
-            color: black;
-            padding: 0; /* no padding to match canvas width exactly */
-            overflow: hidden;
-            font-family: 'Press Start 2P', 'Courier New', monospace;
-            /* font-size will be tuned at runtime to guarantee three lines */
-            line-height: 1.05;
-            box-shadow: 0 2px 6px rgba(0,0,0,0.2);
-            position: relative;
-            box-sizing: border-box; /* include border in width */
-        }
-        #dialog .dialog-text {
-            white-space: pre-wrap;
-            margin: 0;
-            padding: 8px; /* inner padding for text readability; does not change outer width */
-            box-sizing: border-box;
-        }
-        #dialog .dialog-more {
-            position: absolute;
-            right: 8px;
-            bottom: 6px;
-            width: 16px;
-            height: 16px;
-            opacity: 0.8;
-            pointer-events: none;
-        }
-        /* Joystick zone anchored bottom-left above dialog */
-        /* Controls outside canvas: fixed to viewport edges. Hidden by default on desktop; shown when touch device is detected */
-        #zone {
-            position: fixed;
-            left: 16px;
-            bottom: 16px;
-            width: 160px;
-            height: 160px;
-            z-index: 10000;
-            display: none; /* show only on touch devices when joystick created */
-        }
-        /* B button (green) anchored bottom-right outside canvas. Hidden by default on desktop. */
-        #btn-b {
-            position: absolute;
-            right: 16px;
-            bottom: 16px;
-            width: 56px;
-            height: 56px;
-            border-radius: 50%;
-            background: linear-gradient(#3ad24a,#1aa02a);
-            color: white;
-            font-weight: 700;
-            border: 3px solid #064f1a;
-            box-shadow: 0 4px 8px rgba(0,0,0,0.4);
-            z-index: 10001;
-            display: none; /* hidden by default on desktop */
-            align-items: center;
-            justify-content: center;
-            pointer-events: auto;
-            user-select: none;
-        }
-        #btn-b:active { transform: scale(0.96); }
-        @media (min-width: 800px) {
-            /* on large screens, make the B button slightly smaller */
-            #btn-b { width: 44px; height: 44px; }
-        }
-        /* D-PAD skin to approximate a Gameboy cross */
-        #dpad-skin {
-            position: absolute;
-            inset: 0;
-            pointer-events: none;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-        /* circular base */
-        #dpad-skin .base {
-            position: absolute;
-            width: 120px;
-            height: 120px;
-            background: radial-gradient(circle at 30% 30%, rgba(0,0,0,0.22), rgba(0,0,0,0.12));
-            border-radius: 50%;
-            border: 6px solid rgba(0,0,0,0.25);
-            box-shadow: inset 0 6px 10px rgba(0,0,0,0.2);
-        }
-        #dpad-skin .cross {
-            position: absolute;
-            width: 68px;
-            height: 68px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-        #dpad-skin .cross::before,
-        #dpad-skin .cross::after {
-            content: '';
-            position: absolute;
-            background: #222;
-            border-radius: 6px;
-        }
-        #dpad-skin .cross::before { /* horizontal */
-            width: 68px;
-            height: 18px;
-        }
-        #dpad-skin .cross::after { /* vertical */
-            width: 18px;
-            height: 68px;
-        }
+canvas#game {
+  width: auto;
+  max-width: 100vw;
+  height: auto;
+  max-height: 100vh;
+  image-rendering: pixelated;
+  image-rendering: -moz-crisp-edges;
+  background: #000;
+  margin-top: 8px;
+  display: block;
+  box-shadow: 0 4px 12px #0009;
+}
 
-    </style>
+#dialog {
+  box-sizing: border-box;
+  pointer-events: none;
+  z-index: 9999;
+  justify-content: flex-end;
+  align-items: stretch;
+  width: 0;
+  height: 0;
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  overflow: visible;
+}
+
+#dialog.visible {
+  pointer-events: auto;
+  display: block;
+}
+
+#dialog .dialog-inner {
+  color: #000;
+  box-sizing: border-box;
+  background: #fff;
+  border: 3px solid #000;
+  width: 100%;
+  height: 33%;
+  padding: 0;
+  font-family: "Press Start 2P", Courier New, monospace;
+  line-height: 1.05;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 2px 6px #0003;
+}
+
+#dialog .dialog-text {
+  white-space: pre-wrap;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 8px;
+}
+
+#dialog .dialog-more {
+  opacity: .8;
+  pointer-events: none;
+  width: 16px;
+  height: 16px;
+  position: absolute;
+  bottom: 6px;
+  right: 8px;
+}
+
+#zone {
+  z-index: 10000;
+  width: 160px;
+  height: 160px;
+  display: none;
+  position: fixed;
+  bottom: 16px;
+  left: 16px;
+}
+
+#btn-b {
+  color: #fff;
+  z-index: 10001;
+  pointer-events: auto;
+  user-select: none;
+  background: linear-gradient(#3ad24a, #1aa02a);
+  border: 3px solid #064f1a;
+  border-radius: 50%;
+  justify-content: center;
+  align-items: center;
+  width: 56px;
+  height: 56px;
+  font-weight: 700;
+  display: none;
+  position: absolute;
+  bottom: 16px;
+  right: 16px;
+  box-shadow: 0 4px 8px #0006;
+}
+
+#btn-b:active {
+  transform: scale(.96);
+}
+
+@media (width >= 800px) {
+  #btn-b {
+    width: 44px;
+    height: 44px;
+  }
+}
+
+#dpad-skin {
+  pointer-events: none;
+  justify-content: center;
+  align-items: center;
+  display: flex;
+  position: absolute;
+  inset: 0;
+}
+
+#dpad-skin .base {
+  background: radial-gradient(circle at 30% 30%, #00000038, #0000001f);
+  border: 6px solid #00000040;
+  border-radius: 50%;
+  width: 120px;
+  height: 120px;
+  position: absolute;
+  box-shadow: inset 0 6px 10px #0003;
+}
+
+#dpad-skin .cross {
+  justify-content: center;
+  align-items: center;
+  width: 68px;
+  height: 68px;
+  display: flex;
+  position: absolute;
+}
+
+#dpad-skin .cross:before, #dpad-skin .cross:after {
+  content: "";
+  background: #222;
+  border-radius: 6px;
+  position: absolute;
+}
+
+#dpad-skin .cross:before {
+  width: 68px;
+  height: 18px;
+}
+
+#dpad-skin .cross:after {
+  width: 18px;
+  height: 68px;
+}
+</style>
 
     <canvas id="game"></canvas>
     <div id="zone">
@@ -176,6 +186,6 @@
     <button id="btn-b" aria-label="Button B">B</button>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/nipplejs/0.9.0/nipplejs.min.js"></script>
-    <script type="module" src="./src/main.ts"></script>
+    <script src="/index.b7a05eb9.js" defer=""></script>
 </body>
 </html>
