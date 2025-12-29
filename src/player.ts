@@ -19,7 +19,6 @@ export class Player extends ex.Actor {
     }
 
     current_graphics = ""; 
-    private dirj: ex.Vector = ex.vec(0, 0);
     //private _textengine: CustomText;
     onInitialize(engine: ex.Engine): void {
         engine.currentScene.camera.strategy.lockToActor(this);
@@ -76,20 +75,8 @@ export class Player extends ex.Actor {
 
         this.current_graphics = 'down-idle';
 
-        // Register joystick handlers once and store joystick vector in this.dirj
-        if (GameStatus.joystick) {
-            GameStatus.joystick.on("move", (evt, data) => {
-                if (!data.vector) return;
-                const x = data.vector.x;
-                const y = data.vector.y;
-                // store raw vector; normalization and scaling are done in onPreUpdate
-                this.dirj = ex.vec(x, y);
-            });
+        // Joystick is handled globally via GameStatus.joystickVector (updated in main when joystick emits events)
 
-            GameStatus.joystick.on("end", () => {
-                this.dirj = ex.vec(0, 0);
-            });
-        }
 
         const leftWalk = new ex.Animation({
             frames: [
@@ -153,7 +140,7 @@ export class Player extends ex.Actor {
                 ||
                 (up > threshold && up >= down * ratio && up >= left * ratio && up >= right * ratio && left == 0 && right == 0)
                 ||
-                (this.dirj.y > 0.3)
+                (GameStatus.joystickVector.y < -0.3) // joystick y < 0 means up
             ) {
                 dir.y = -1;
                 this.graphics.use(this._currentAnim = 'up-walk');
@@ -166,7 +153,7 @@ export class Player extends ex.Actor {
                 ||
                 (down > threshold && down >= up * ratio && down >= left * ratio && down >= right * ratio && left == 0 && right == 0)
                 ||
-                (this.dirj.y < -0.3)
+                (GameStatus.joystickVector.y > 0.3) // joystick y > 0 means down
             ) {
                 dir.y = 1;
                 this.graphics.use(this._currentAnim = 'down-walk');
@@ -179,7 +166,7 @@ export class Player extends ex.Actor {
                 ||
                 (right > 0)//&& right >= left * ratio && right >= up * ratio && right >= down * ratio)
                 ||
-                (this.dirj.x > 0.3)
+                (GameStatus.joystickVector.x > 0.3)
             ) {
                 dir.x = 1;
                 this.graphics.use(this._currentAnim = 'right-walk');
@@ -192,7 +179,7 @@ export class Player extends ex.Actor {
                 ||
                 (left > 0)//&& left >= right * ratio && left >= up * ratio && left >= down * ratio)
                 ||
-                (this.dirj.x < -0.3)
+                (GameStatus.joystickVector.x < -0.3)
             ) {
                 dir.x = -1;
                 this.graphics.use(this._currentAnim = 'left-walk');
@@ -221,7 +208,20 @@ export class Player extends ex.Actor {
                 if (maybeTile?.solid) {
                     const targetMidW = maybeTile.pos.x + (maybeTile.width / 2);
                     const targetMidH = maybeTile.pos.y + (maybeTile.height / 2);
-
+                    // This logic causes player to slide to nearest edge to go around objects.
+                    if (this._currentAnim === 'left-walk' || this._currentAnim === 'right-walk') {
+                        if (this.pos.y < targetMidH) { 
+                            this.pos.y -= 1;
+                        } else {
+                            this.pos.y += 1;
+                        }
+                    } else { // source.facing === 'up' || source.facing === 'down'
+                        if (this.pos.x < targetMidW) { 
+                            this.pos.x -= 1;
+                        } else {
+                            this.pos.x += 1;
+                        }
+                    }
                     break;
                 }
             }
@@ -233,17 +233,17 @@ export class Player extends ex.Actor {
 
         if (otherOwner instanceof Daniel) {
             if (GameStatus.schatz_gefunden == false) {
-            DialogManager.say("DANIEL: Oh nein, wir\n haben unseren \nSchatz verloren,\nfindest du ihn wieder?", true);
+            DialogManager.say("DANIEL: Oh nein, wir haben unseren Schatz verloren, findest du ihn wieder?", true);
             } else {
-                DialogManager.say("DANIEL: SURPRISE", true);
+                DialogManager.say("DANIEL: SURPRISE!!", true);
             }
         }
 
         if (otherOwner instanceof Vio) {
             if (GameStatus.schatz_gefunden == false) {
-            DialogManager.say("VIO: Oh nein, wir\n haben unseren \nSchatz verloren,\nfindest du ihn wieder?", true);
+            DialogManager.say("VIO: Oh nein, wir haben unseren Schatz verloren, findest du ihn wieder?", true);
             } else {
-                DialogManager.say("VIO: Danke, du hast unsere Eheringe gefunden. Wir haben am 20.12. geheiratet!         SURPRISE!!!", true);
+                DialogManager.say("VIO: Danke, du hast unsere Eheringe gefunden. Wir haben am 20.12. geheiratet!      SURPRISE!!!", true);
             }
         }
 
